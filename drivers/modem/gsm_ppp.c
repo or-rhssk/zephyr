@@ -1083,6 +1083,38 @@ unlock:
 	gsm_ppp_unlock(gsm);
 }
 
+static int gsm_quectel_autobaud(struct gsm_modem *gsm)
+{
+	int ret;
+	char buf[sizeof("AT+IPR=1000000")];
+
+	LOG_INF("Trying to disable autobaud by setting baudrate to %dbps",
+		DT_PROP(GSM_UART_NODE, current_speed));
+
+	/* At lease one AT command was already sent, modem baudrate should now be synchronized with
+	 * ours
+	 */
+
+	snprintk(buf, sizeof(buf), "AT+IPR=%d", DT_PROP(GSM_UART_NODE, current_speed));
+	ret = modem_cmd_send_nolock(&gsm->context.iface, &gsm->context.cmd_handler,
+				    &response_cmds[0], ARRAY_SIZE(response_cmds), buf,
+				    &gsm->sem_response, GSM_CMD_AT_TIMEOUT);
+	if (ret < 0) {
+		LOG_ERR("Failed to set fixed baudrate (err=%d)", ret);
+		return ret;
+	}
+
+	ret = modem_cmd_send_nolock(&gsm->context.iface, &gsm->context.cmd_handler,
+				    &response_cmds[0], ARRAY_SIZE(response_cmds), "AT&W",
+				    &gsm->sem_response, GSM_CMD_AT_TIMEOUT);
+	if (ret < 0) {
+		LOG_ERR("Failed to save fixed baudrate (err=%d)", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static void gsm_configure(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
@@ -1114,8 +1146,10 @@ wait_at:
 				    "AT", &gsm->sem_response,
 				    GSM_CMD_AT_TIMEOUT);
 	if (ret < 0) {
-		LOG_DBG("modem not ready %d", ret);
-		goto retry;
+		if (!IS_ENABLED(CONFIG_MODEM_GSM_QUECTEL) || gsm_quectel_autobaud(gsm) != 0) {
+			LOG_DBG("modem not ready %d", ret);
+			goto retry;
+		}
 	}
 
 	gsm->state = GSM_PPP_AT_RDY;
