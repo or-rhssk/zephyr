@@ -53,6 +53,15 @@ test_quectel_eg25_g: quectel_eg25_g {
 	mdm-reset-gpios = <&test_gpio 0 0>;
 };
 
+test_quectel_m66: quectel_m66 {
+	compatible = "quectel,m66";
+
+	mdm-power-gpios = <&test_gpio 0 0>;
+
+	mdm-dtr-gpios = <&test_gpio 0 0>;
+	mdm-ri-gpios = <&test_gpio 0 0>;
+};
+
 test_gsm_ppp: gsm_ppp {
 	compatible = "zephyr,gsm-ppp";
 };
